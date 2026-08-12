@@ -1,0 +1,199 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Kenchats</title>
+<style>
+  :root{
+    --bg: #0B0D12;
+    --accent: #6C5CE7;
+    --accent-warm: #F2B84B;
+    --text: #ECEDEF;
+  }
+  *{ margin:0; padding:0; box-sizing:border-box; }
+  html, body{
+    width:100%; height:100%;
+    background: var(--bg);
+    overflow:hidden;
+    font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+  }
+  .splash{
+    position:relative;
+    width:100vw; height:100vh;
+    overflow:hidden;
+  }
+  video#bgVideo{
+    position:absolute; top:0; left:0;
+    width:100%; height:100%;
+    object-fit:cover;
+    filter:brightness(0.75);
+  }
+  .overlay-gradient{
+    position:absolute; inset:0;
+    background: linear-gradient(180deg, rgba(11,13,18,0.15) 0%, rgba(11,13,18,0.75) 100%);
+  }
+  .logo-wrap{
+    position:absolute;
+    left:50%; top:50%;
+    transform:translate(-50%,-50%);
+    text-align:center;
+    color:var(--text);
+    z-index:2;
+  }
+  .logo-wrap h1{
+    font-size:2.6rem;
+    letter-spacing:0.02em;
+    font-weight:700;
+    text-shadow:0 4px 20px rgba(0,0,0,0.5);
+  }
+  .logo-wrap .dot{ color:var(--accent-warm); }
+  .logo-wrap p{
+    margin-top:8px;
+    font-size:0.9rem;
+    opacity:0.7;
+    letter-spacing:0.15em;
+    text-transform:uppercase;
+  }
+  .start-btn{
+    position:absolute;
+    top:24px; right:24px;
+    z-index:3;
+    padding:10px 26px;
+    border-radius:999px;
+    border:1.5px solid rgba(255,255,255,0.35);
+    background:rgba(20,22,28,0.45);
+    backdrop-filter:blur(6px);
+    color:var(--text);
+    font-size:0.95rem;
+    font-weight:600;
+    letter-spacing:0.05em;
+    cursor:pointer;
+    opacity:0;
+    transform:translateY(-14px);
+    transition: opacity 0.5s ease, transform 0.5s ease, background 0.25s ease;
+  }
+  .start-btn.show{
+    opacity:1;
+    transform:translateY(0);
+  }
+  .start-btn:hover{
+    background:rgba(108,92,231,0.35);
+    border-color:var(--accent);
+  }
+  .flash{
+    position:fixed; inset:0;
+    background:#fff;
+    opacity:0;
+    pointer-events:none;
+    z-index:10;
+  }
+  .flash.active{
+    opacity:1;
+    transition: opacity 0.12s ease;
+  }
+  .flash.fadeout{
+    opacity:0;
+    transition: opacity 0.4s ease;
+  }
+  .music-toggle{
+    position:fixed; z-index:50;
+    top:16px; left:16px;
+    width:40px; height:40px; border-radius:50%;
+    border:1px solid rgba(255,255,255,0.15);
+    background:rgba(20,22,28,0.55);
+    backdrop-filter:blur(6px);
+    color:#ECEDEF; font-size:1.1rem;
+    display:flex; align-items:center; justify-content:center;
+    cursor:pointer;
+  }
+  .fade-out-page{
+    animation: fadePage 0.35s ease forwards;
+  }
+  @keyframes fadePage{
+    from{ opacity:1; }
+    to{ opacity:0; }
+  }
+</style>
+</head>
+<body>
+
+<div class="splash" id="splashRoot">
+  <video id="bgVideo" autoplay muted loop playsinline>
+    <source src="1.mp4" type="video/mp4">
+  </video>
+  <div class="overlay-gradient"></div>
+
+  <div class="logo-wrap">
+    <h1>Project Kenchats<span class="dot">.</span></h1>
+    <p>ngobrol tanpa batas</p>
+  </div>
+
+  <button class="start-btn" id="startBtn">START</button>
+</div>
+
+<div class="flash" id="flashEl"></div>
+
+<audio id="bgMusic" src="p.mp3" loop></audio>
+
+<script>
+  (function(){
+    const audio = document.getElementById('bgMusic');
+    const btn = document.getElementById('musicToggle');
+    const KEY = 'kenchats_music_on';
+
+    function updateIcon(playing){ btn.textContent = playing ? '' : ''; }
+
+    if (localStorage.getItem(KEY) === 'on'){
+      audio.play().then(()=>updateIcon(true)).catch(()=>updateIcon(false));
+    }
+
+    btn.addEventListener('click', () => {
+      if (audio.paused){
+        audio.play().then(()=>{ localStorage.setItem(KEY,'on'); updateIcon(true); }).catch(()=>{});
+      } else {
+        audio.pause();
+        localStorage.setItem(KEY,'off');
+        updateIcon(false);
+      }
+    });
+  })();
+</script>
+
+<script>
+  const startBtn = document.getElementById('startBtn');
+  const flashEl = document.getElementById('flashEl');
+  const splashRoot = document.getElementById('splashRoot');
+
+  let navigated = false;
+
+  function goToLogin(){
+    if(navigated) return;
+    navigated = true;
+
+    // efek flash
+    flashEl.classList.add('active');
+    setTimeout(()=>{
+      window.location.href = 'login.html';
+    }, 180);
+  }
+
+  // Tampilkan tombol START setelah 3 detik
+  setTimeout(()=>{
+    startBtn.classList.add('show');
+  }, 6000);
+
+  // Setelah 3 detik, otomatis lanjut (flash lalu pindah halaman)
+  setTimeout(()=>{
+    goToLogin();
+  }, 6000);
+
+  // Kalau user klik START duluan, langsung pindah
+  startBtn.addEventListener('click', (e)=>{
+    e.stopPropagation();
+    goToLogin();
+  });
+</script>
+
+</body>
+</html>

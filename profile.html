@@ -1,0 +1,336 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Kenchats - Profil</title>
+<style>
+  :root{
+    --bg:#0B0D12; --surface:#161A22; --surface-2:#1E232D;
+    --accent:#6C5CE7; --accent-hover:#5A4BD6; --accent-warm:#F2B84B;
+    --text:#ECEDEF; --muted:#8B939F; --danger:#FF6B6B;
+  }
+  *{ margin:0; padding:0; box-sizing:border-box; }
+  html,body{ height:100%; background:var(--bg); color:var(--text); font-family:'Segoe UI',system-ui,-apple-system,sans-serif; }
+  .app{ display:flex; flex-direction:column; height:100vh; }
+
+  header{ padding:18px; border-bottom:1px solid rgba(255,255,255,0.06); }
+  header h1{ font-size:1.2rem; }
+  header h1 span{ color:var(--accent-warm); }
+
+  .content{ flex:1; overflow-y:auto; padding:30px 20px; text-align:center; }
+  .avatar-wrap{ position:relative; width:90px; margin:0 auto 16px; }
+  .avatar-big{
+    width:90px; height:90px; border-radius:50%;
+    background:linear-gradient(135deg, var(--accent), #A29BFE);
+    display:flex; align-items:center; justify-content:center;
+    font-size:2rem; font-weight:700; color:#fff;
+    overflow:hidden;
+  }
+  .avatar-big img{ width:100%; height:100%; object-fit:cover; }
+
+  .p-username{ font-size:1.25rem; font-weight:700; margin-bottom:2px; }
+  .p-email{ color:var(--muted); font-size:0.85rem; margin-bottom:20px; }
+
+  .info-card{
+    background:var(--surface); border:1px solid rgba(255,255,255,0.06);
+    border-radius:14px; padding:16px 18px; text-align:left; margin-bottom:16px;
+  }
+  .info-row{ display:flex; justify-content:space-between; padding:8px 0; font-size:0.88rem; }
+  .info-row + .info-row{ border-top:1px solid rgba(255,255,255,0.05); }
+  .info-row .lbl{ color:var(--muted); }
+
+  .edit-btn{
+    width:100%; padding:12px; border-radius:12px; border:1px solid var(--accent);
+    background:transparent; color:var(--accent-warm); font-size:0.92rem; font-weight:600;
+    cursor:pointer; margin-bottom:12px;
+  }
+  .edit-btn:hover{ background:rgba(108,92,231,0.12); }
+
+  .logout-btn{
+    width:100%; padding:12px; border-radius:12px; border:1px solid var(--danger);
+    background:transparent; color:var(--danger); font-size:0.95rem; font-weight:600; cursor:pointer;
+  }
+  .logout-btn:hover{ background:rgba(255,107,107,0.1); }
+
+  .section-label{ font-size:0.72rem; color:var(--muted); text-transform:uppercase; letter-spacing:0.06em; }
+  .empty-hint{ text-align:center; color:var(--muted); font-size:0.85rem; margin-top:8px; }
+  .blocklist-item{
+    display:flex; align-items:center; justify-content:space-between;
+    padding:10px; border-radius:10px; background:var(--surface-2); margin-bottom:8px; margin-top:10px;
+  }
+  .blocklist-item button{
+    padding:6px 12px; border-radius:999px; border:none; background:var(--accent);
+    color:#fff; font-size:0.78rem; cursor:pointer;
+  }
+
+  nav.bottomnav{ display:flex; border-top:1px solid rgba(255,255,255,0.06); background:var(--surface); }
+  nav.bottomnav a{ position:relative; flex:1; text-align:center; padding:12px 0; color:var(--muted); text-decoration:none; font-size:0.78rem; }
+  nav.bottomnav a.active{ color:var(--accent-warm); }
+  nav.bottomnav .ic{ font-size:1.2rem; display:block; margin-bottom:2px; position:relative; }
+  .nav-dot{
+    position:absolute; top:-2px; right:calc(50% - 15px);
+    width:9px; height:9px; border-radius:50%; background:#FF6B6B;
+    border:2px solid var(--bg); display:none;
+  }
+
+  .modal-overlay{
+    position:fixed; inset:0; background:rgba(0,0,0,0.6);
+    display:none; align-items:center; justify-content:center; z-index:30; padding:20px;
+  }
+  .modal-overlay.show{ display:flex; }
+  .modal-box{
+    background:var(--surface); border:1px solid rgba(255,255,255,0.08);
+    border-radius:16px; padding:22px 20px; width:100%; max-width:360px;
+  }
+  .modal-box h2{ font-size:1.05rem; margin-bottom:16px; }
+  .field{ margin-bottom:14px; }
+  .field label{ display:block; font-size:0.78rem; color:var(--muted); margin-bottom:6px; }
+  .field input{
+    width:100%; padding:11px 13px; border-radius:10px; border:1px solid rgba(255,255,255,0.1);
+    background:var(--surface-2); color:var(--text); font-size:0.9rem; outline:none;
+  }
+  .field input:focus{ border-color:var(--accent); }
+  .modal-actions{ display:flex; gap:10px; margin-top:16px; }
+  .modal-actions button{
+    flex:1; padding:11px; border-radius:10px; border:none; font-size:0.9rem; font-weight:600; cursor:pointer;
+  }
+  .btn-cancel{ background:var(--surface-2); color:var(--text); }
+  .btn-save{ background:var(--accent); color:#fff; }
+  .btn-save:disabled{ opacity:0.6; }
+  .modal-msg{ min-height:16px; font-size:0.8rem; color:var(--danger); text-align:center; margin-top:10px; }
+  .modal-msg.success{ color:#5FD68D; }
+</style>
+</head>
+<body>
+<div class="app">
+  <header><h1>Profil<span>.</span></h1></header>
+
+  <div class="content">
+    <div class="avatar-wrap">
+      <div class="avatar-big" id="avatarBig">?</div>
+    </div>
+    <div class="p-username" id="pUsername">...</div>
+    <div class="p-email" id="pEmail">...</div>
+
+    <div class="info-card">
+      <div class="info-row"><span class="lbl">Username</span><span id="rowUsername">-</span></div>
+      <div class="info-row"><span class="lbl">Kenchats ID</span><span id="rowId">-</span></div>
+      <div class="info-row"><span class="lbl">Email</span><span id="rowEmail">-</span></div>
+      <div class="info-row"><span class="lbl">Status</span><span id="rowVerified">-</span></div>
+      <div class="info-row"><span class="lbl">Bergabung</span><span id="rowJoined">-</span></div>
+    </div>
+
+    <button class="edit-btn" id="openEditBtn">Edit Profil</button>
+    <button class="logout-btn" id="logoutBtn">Logout</button>
+
+    <div class="section-label" style="text-align:left; margin-top:22px;">User Diblokir</div>
+    <div id="blockedList"></div>
+  </div>
+
+  <nav class="bottomnav">
+    <a href="chat.html"><span class="ic">💬<span class="nav-dot" id="dotChat"></span></span>Chat</a>
+    <a href="status.html"><span class="ic">✨</span>Status</a>
+    <a href="profile.html" class="active"><span class="ic">👤</span>Profil</a>
+  </nav>
+</div>
+
+<div class="modal-overlay" id="editModal">
+  <div class="modal-box">
+    <h2>Edit Profil</h2>
+    <div class="field">
+      <label>Username</label>
+      <input type="text" id="editUsername" placeholder="@usernamekamu" maxlength="20">
+    </div>
+    <div class="modal-msg" id="editMsg"></div>
+    <div class="modal-actions">
+      <button type="button" class="btn-cancel" id="cancelEditBtn">Batal</button>
+      <button type="button" class="btn-save" id="saveEditBtn">Simpan</button>
+    </div>
+  </div>
+</div>
+
+<script type="module">
+  import { initializeApp } from "https://www.gstatic.com/firebasejs/12.12.0/firebase-app.js";
+  import { getAuth, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/12.12.0/firebase-auth.js";
+  import {
+    getFirestore, doc, getDoc, setDoc, collection, query, where, getDocs,
+    onSnapshot, updateDoc, serverTimestamp, arrayRemove
+  } from "https://www.gstatic.com/firebasejs/12.12.0/firebase-firestore.js";
+
+  const firebaseConfig = {
+    apiKey: "AIzaSyCJomifys1cY-9ELI4Ft3Z5N-cLs2YQcVU",
+    authDomain: "nero-fa67c.firebaseapp.com",
+    projectId: "nero-fa67c",
+    storageBucket: "nero-fa67c.firebasestorage.app",
+    messagingSenderId: "349005489687",
+    appId: "1:349005489687:web:c27ce076b4f54da5275e52"
+  };
+  const app = initializeApp(firebaseConfig);
+  const auth = getAuth(app);
+  const db = getFirestore(app);
+
+  function startPresence(myUid){
+    const ref = doc(db, 'users', myUid);
+    const beat = () => updateDoc(ref, { lastSeen: serverTimestamp() }).catch(()=>{});
+    beat();
+    setInterval(beat, 25000);
+    document.addEventListener('visibilitychange', () => { if (!document.hidden) beat(); });
+    window.addEventListener('beforeunload', beat);
+  }
+  async function unblockUser(myUid, otherUid){
+    await updateDoc(doc(db, 'users', myUid), { blockedUsers: arrayRemove(otherUid) });
+  }
+
+  let currentUid = null;
+  let currentData = {};
+
+  function renderAvatar(el, username, photoUrl){
+    if (photoUrl){
+      el.innerHTML = `<img src="${photoUrl}" alt="foto profil">`;
+    } else {
+      el.textContent = (username || '?').replace('@','').charAt(0).toUpperCase();
+    }
+  }
+
+  async function loadProfile(user){
+    const snap = await getDoc(doc(db, 'users', user.uid));
+    currentData = snap.exists() ? snap.data() : {};
+    const username = currentData.username || user.email;
+    const email = currentData.email || user.email;
+    const joined = currentData.createdAt?.toDate
+      ? currentData.createdAt.toDate().toLocaleDateString('id-ID', { year:'numeric', month:'long', day:'numeric' })
+      : '-';
+
+    renderAvatar(document.getElementById('avatarBig'), username, currentData.photo);
+    document.getElementById('pUsername').textContent = username;
+    document.getElementById('pEmail').textContent = email;
+    document.getElementById('rowUsername').textContent = username;
+    document.getElementById('rowId').textContent = currentData.kenchatsId || '-';
+    document.getElementById('rowEmail').textContent = email;
+    document.getElementById('rowVerified').textContent = user.emailVerified ? '✅ Terverifikasi' : '⚠️ Belum verifikasi';
+    document.getElementById('rowJoined').textContent = joined;
+
+    renderBlockedList();
+  }
+
+  async function renderBlockedList(){
+    const listEl = document.getElementById('blockedList');
+    const blocked = currentData.blockedUsers || [];
+    if (blocked.length === 0){
+      listEl.innerHTML = '<div class="empty-hint">Belum ada user yang diblokir.</div>';
+      return;
+    }
+    listEl.innerHTML = '';
+    for (const uid of blocked){
+      const snap = await getDoc(doc(db, 'users', uid));
+      const name = snap.exists() ? (snap.data().username || 'User') : 'User (terhapus)';
+      const row = document.createElement('div');
+      row.className = 'blocklist-item';
+      row.innerHTML = `<span>${name}</span>`;
+      const btn = document.createElement('button');
+      btn.textContent = 'Buka Blokir';
+      btn.addEventListener('click', async () => {
+        await unblockUser(currentUid, uid);
+        currentData.blockedUsers = (currentData.blockedUsers || []).filter(u => u !== uid);
+        renderBlockedList();
+      });
+      row.appendChild(btn);
+      listEl.appendChild(row);
+    }
+  }
+
+  onAuthStateChanged(auth, async (user) => {
+    if (!user) { window.location.href = 'login.html'; return; }
+    currentUid = user.uid;
+    await loadProfile(user);
+    startPresence(currentUid);
+    watchUnreadBadge();
+  });
+
+  function watchUnreadBadge(){
+    const dot = document.getElementById('dotChat');
+    const q = query(collection(db, 'chats'), where('participants', 'array-contains', currentUid));
+    onSnapshot(q, (snap) => {
+      let unread = false;
+      snap.forEach(d => {
+        const c = d.data();
+        if (!c.lastMessage || c.lastSenderId === currentUid) return;
+        const lastRead = c.lastRead && c.lastRead[currentUid] ? c.lastRead[currentUid].toMillis() : 0;
+        const updated = c.updatedAt && c.updatedAt.toMillis ? c.updatedAt.toMillis() : 0;
+        if (updated > lastRead) unread = true;
+      });
+      dot.style.display = unread ? 'block' : 'none';
+    });
+  }
+
+  document.getElementById('logoutBtn').addEventListener('click', async () => {
+    await signOut(auth);
+    window.location.href = 'login.html';
+  });
+
+  const editModal = document.getElementById('editModal');
+  const editMsg = document.getElementById('editMsg');
+
+  function setEditMsg(text, success=false){
+    editMsg.textContent = text;
+    editMsg.classList.toggle('success', success);
+  }
+
+  document.getElementById('openEditBtn').addEventListener('click', () => {
+    setEditMsg('');
+    document.getElementById('editUsername').value = currentData.username || '';
+    editModal.classList.add('show');
+  });
+
+  document.getElementById('cancelEditBtn').addEventListener('click', () => {
+    editModal.classList.remove('show');
+  });
+
+  document.getElementById('saveEditBtn').addEventListener('click', async () => {
+    const saveBtn = document.getElementById('saveEditBtn');
+    setEditMsg('');
+    saveBtn.disabled = true;
+    saveBtn.textContent = 'Menyimpan...';
+
+    try {
+      let newUsername = document.getElementById('editUsername').value.trim();
+      if (newUsername && !newUsername.startsWith('@')) newUsername = '@' + newUsername;
+      const updates = {};
+
+      if (newUsername && newUsername !== currentData.username){
+        const usernameLower = newUsername.toLowerCase();
+        const q = query(collection(db, 'users'), where('username_lower', '==', usernameLower));
+        const existing = await getDocs(q);
+        const takenByOther = existing.docs.some(d => d.id !== currentUid);
+        if (takenByOther){
+          setEditMsg('Username sudah dipakai orang lain.');
+          saveBtn.disabled = false;
+          saveBtn.textContent = 'Simpan';
+          return;
+        }
+        updates.username = newUsername;
+        updates.username_lower = usernameLower;
+      }
+
+      if (Object.keys(updates).length > 0){
+        await setDoc(doc(db, 'users', currentUid), updates, { merge: true });
+        currentData = { ...currentData, ...updates };
+      }
+
+      setEditMsg('Profil berhasil diperbarui!', true);
+      renderAvatar(document.getElementById('avatarBig'), currentData.username, currentData.photo);
+      document.getElementById('pUsername').textContent = currentData.username || document.getElementById('pUsername').textContent;
+      document.getElementById('rowUsername').textContent = currentData.username || document.getElementById('rowUsername').textContent;
+
+      setTimeout(() => { editModal.classList.remove('show'); }, 700);
+    } catch (err) {
+      setEditMsg('Gagal: ' + err.message);
+    } finally {
+      saveBtn.disabled = false;
+      saveBtn.textContent = 'Simpan';
+    }
+  });
+</script>
+</body>
+</html>

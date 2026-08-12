@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Kenchats - Home</title>
+<style>
+  *{ margin:0; padding:0; box-sizing:border-box; }
+  html, body{
+    height:100%;
+    background:#0B0D12;
+    color:#ECEDEF;
+    font-family:'Segoe UI', system-ui, -apple-system, sans-serif;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    text-align:center;
+  }
+  .wrap{ padding:24px; }
+  h1{ font-size:1.5rem; margin-bottom:10px; }
+  h1 span{ color:#F2B84B; }
+  p{ color:#8B939F; margin-bottom:6px; }
+  #uname{ color:#6C5CE7; font-weight:600; }
+  .logout{
+    margin-top:22px;
+    padding:10px 22px;
+    border:1px solid rgba(255,255,255,0.15);
+    background:transparent;
+    color:#ECEDEF;
+    border-radius:999px;
+    cursor:pointer;
+  }
+  .logout:hover{ background:rgba(255,255,255,0.08); }
+</style>
+</head>
+<body>
+  <div class="wrap">
+    <h1>Kenchats<span>.</span></h1>
+    <p>Halo, <span id="uname">...</span> 👋</p>
+    <p>Fitur cari user, daftar chat, dan chat room akan dibuat di tahap berikutnya.</p>
+    <button class="logout" id="logoutBtn">Logout</button>
+  </div>
+
+<script type="module">
+  import { initializeApp } from "https://www.gstatic.com/firebasejs/12.12.0/firebase-app.js";
+  import { getAuth, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/12.12.0/firebase-auth.js";
+  import { getFirestore, doc, getDoc } from "https://www.gstatic.com/firebasejs/12.12.0/firebase-firestore.js";
+
+  const firebaseConfig = {
+    apiKey: "AIzaSyCJomifys1cY-9ELI4Ft3Z5N-cLs2YQcVU",
+    authDomain: "nero-fa67c.firebaseapp.com",
+    projectId: "nero-fa67c",
+    storageBucket: "nero-fa67c.firebasestorage.app",
+    messagingSenderId: "349005489687",
+    appId: "1:349005489687:web:c27ce076b4f54da5275e52"
+  };
+
+  const app = initializeApp(firebaseConfig);
+  const auth = getAuth(app);
+  const db = getFirestore(app);
+
+  onAuthStateChanged(auth, async (user) => {
+    if (!user) {
+      window.location.href = 'login.html';
+      return;
+    }
+    const snap = await getDoc(doc(db, 'users', user.uid));
+    document.getElementById('uname').textContent = snap.exists() ? snap.data().username : user.email;
+  });
+
+  document.getElementById('logoutBtn').addEventListener('click', async () => {
+    await signOut(auth);
+    window.location.href = 'login.html';
+  });
+</script>
+</body>
+</html>

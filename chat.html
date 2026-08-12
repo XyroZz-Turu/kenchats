@@ -1,0 +1,600 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Kenchats - Chat</title>
+<style>
+  :root{
+    --bg:#0B0D12; --surface:#161A22; --surface-2:#1E232D;
+    --accent:#6C5CE7; --accent-hover:#5A4BD6; --accent-warm:#F2B84B; --text:#ECEDEF; --muted:#8B939F; --online:#5FD68D;
+  }
+  *{ margin:0; padding:0; box-sizing:border-box; }
+  html,body{ height:100%; background:var(--bg); color:var(--text); font-family:'Segoe UI',system-ui,-apple-system,sans-serif; }
+  .app{ position:relative; display:flex; flex-direction:column; height:100vh; z-index:1; }
+
+  .bg-image{ position:fixed; inset:0; width:100%; height:100%; object-fit:cover; z-index:-2; filter:brightness(0.55); }
+  .bg-overlay{ position:fixed; inset:0; z-index:-1; background:linear-gradient(180deg, rgba(11,13,18,0.45) 0%, rgba(11,13,18,0.88) 100%); }
+
+  #listView{ display:flex; flex-direction:column; height:100%; }
+  header.list-header{ padding:16px 18px; border-bottom:1px solid rgba(255,255,255,0.08); background:rgba(22,26,34,0.55); backdrop-filter:blur(10px); }
+  header.list-header h1{ font-size:1.2rem; margin-bottom:10px; }
+  header.list-header h1 span{ color:var(--accent-warm); }
+  .search-box{ display:flex; gap:8px; background:var(--surface-2); border:1px solid rgba(255,255,255,0.08); border-radius:12px; padding:9px 13px; }
+  .search-box input{ flex:1; background:transparent; border:none; outline:none; color:var(--text); font-size:0.9rem; }
+  .search-box input::placeholder{ color:var(--muted); }
+
+  .chat-list{ flex:1; overflow-y:auto; padding:6px 10px; }
+  .empty-hint{ text-align:center; color:var(--muted); font-size:0.85rem; margin-top:50px; padding:0 20px; line-height:1.5; }
+  .section-label{ font-size:0.72rem; color:var(--muted); text-transform:uppercase; letter-spacing:0.06em; padding:10px 10px 4px; }
+
+  .chat-item, .user-row{
+    display:flex; align-items:center; gap:12px; padding:12px 10px; margin-bottom:6px; border-radius:14px; cursor:pointer;
+    background:rgba(22,26,34,0.55); backdrop-filter:blur(8px); border:1px solid rgba(255,255,255,0.05);
+    transition:background 0.15s ease;
+  }
+  .chat-item:hover, .chat-item:active, .user-row:hover, .user-row:active{ background:rgba(30,35,45,0.7); }
+  .avatar{
+    width:46px; height:46px; border-radius:50%; flex-shrink:0;
+    background:linear-gradient(135deg, var(--accent), #A29BFE);
+    display:flex; align-items:center; justify-content:center; font-weight:700; color:#fff;
+  }
+  .c-info{ flex:1; min-width:0; }
+  .c-top{ display:flex; justify-content:space-between; align-items:baseline; }
+  .c-name{ font-weight:600; font-size:0.95rem; }
+  .c-time{ font-size:0.7rem; color:var(--muted); flex-shrink:0; }
+  .c-preview{ font-size:0.82rem; color:var(--muted); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; margin-top:2px; }
+  .u-id{ font-size:0.78rem; color:var(--muted); }
+
+  nav.bottomnav{ display:flex; border-top:1px solid rgba(255,255,255,0.08); background:rgba(22,26,34,0.65); backdrop-filter:blur(10px); }
+  nav.bottomnav a{ position:relative; flex:1; text-align:center; padding:12px 0; color:var(--muted); text-decoration:none; font-size:0.78rem; }
+  nav.bottomnav a.active{ color:var(--accent-warm); }
+  nav.bottomnav .ic{ font-size:1.2rem; display:block; margin-bottom:2px; position:relative; }
+  .nav-dot{ position:absolute; top:-2px; right:calc(50% - 15px); width:9px; height:9px; border-radius:50%; background:#FF6B6B; border:2px solid var(--bg); display:none; }
+
+  #roomView{ display:none; flex-direction:column; height:100%; }
+  header.room-header{ display:flex; align-items:center; gap:12px; padding:14px 16px; border-bottom:1px solid rgba(255,255,255,0.08); background:rgba(22,26,34,0.65); backdrop-filter:blur(10px); }
+  header.room-header .back{ font-size:1.3rem; cursor:pointer; color:var(--text); text-decoration:none; flex-shrink:0; }
+  header.room-header .rinfo{ flex:1; min-width:0; }
+  header.room-header .rname{ font-weight:600; font-size:1rem; }
+  header.room-header .rstatus{ font-size:0.75rem; color:var(--muted); }
+  header.room-header .rstatus.online{ color:var(--online); }
+  header.room-header .rstatus.typing{ color:var(--accent-warm); }
+  .menu-btn{ background:none; border:none; color:var(--text); font-size:1.3rem; cursor:pointer; padding:6px; }
+
+  .messages{ flex:1; overflow-y:auto; padding:16px; display:flex; flex-direction:column; gap:8px; }
+  .bubble{ max-width:72%; padding:9px 13px; border-radius:16px; font-size:0.9rem; line-height:1.35; position:relative; word-wrap:break-word; }
+  .bubble.me{ align-self:flex-end; background:var(--accent); color:#fff; border-bottom-right-radius:4px; }
+  .bubble.them{ align-self:flex-start; background:rgba(30,35,45,0.85); backdrop-filter:blur(6px); color:var(--text); border-bottom-left-radius:4px; }
+  .bubble .meta{ font-size:0.65rem; opacity:0.7; margin-top:4px; text-align:right; display:flex; align-items:center; justify-content:flex-end; gap:3px; }
+  .bubble .ticks{ font-size:0.75rem; }
+  .bubble .ticks.read{ color:#7FD8FF; opacity:1; }
+  .bubble img{ max-width:220px; max-height:280px; width:100%; object-fit:cover; border-radius:12px; display:block; margin-bottom:2px; cursor:pointer; }
+
+  form.compose{ display:flex; gap:8px; padding:12px 14px; border-top:1px solid rgba(255,255,255,0.08); background:rgba(22,26,34,0.65); backdrop-filter:blur(10px); }
+  form.compose input[type="text"]{ flex:1; padding:11px 15px; border-radius:999px; border:1px solid rgba(255,255,255,0.08); background:var(--surface-2); color:var(--text); outline:none; font-size:0.9rem; }
+  form.compose button, .attach-btn{
+    width:42px; height:42px; border-radius:50%; border:none; background:var(--accent); color:#fff; font-size:1.1rem; cursor:pointer;
+    display:flex; align-items:center; justify-content:center; flex-shrink:0;
+  }
+  form.compose button:hover, .attach-btn:hover{ background:var(--accent-hover); }
+  .attach-btn{ background:var(--surface-2); color:var(--text); }
+  .attach-btn:hover{ background:#2A313D; }
+
+  .lightbox{ position:fixed; inset:0; background:rgba(0,0,0,0.9); z-index:60; display:none; align-items:center; justify-content:center; padding:20px; }
+  .lightbox.show{ display:flex; }
+  .lightbox img{ max-width:100%; max-height:100%; border-radius:8px; }
+
+  .sheet-overlay{ position:fixed; inset:0; background:rgba(0,0,0,0.55); z-index:70; display:none; align-items:flex-end; justify-content:center; }
+  .sheet-overlay.show{ display:flex; }
+  .sheet-box{ width:100%; max-width:480px; background:var(--surface-2); border-radius:18px 18px 0 0; padding:8px 0 4px; padding-bottom:env(safe-area-inset-bottom, 8px); }
+  .sheet-item{ width:100%; padding:15px 20px; background:none; border:none; text-align:left; color:var(--text); font-size:0.92rem; cursor:pointer; }
+  .sheet-item:hover{ background:rgba(255,255,255,0.05); }
+  .sheet-item.danger{ color:#FF6B6B; }
+  .sheet-item.cancel{ color:var(--muted); border-top:1px solid rgba(255,255,255,0.08); margin-top:4px; }
+  .sheet-item:disabled{ opacity:0.4; cursor:not-allowed; }
+</style>
+</head>
+<body>
+
+<img class="bg-image" src="bg.png" alt="" onerror="this.style.display='none'">
+<div class="bg-overlay"></div>
+
+<div class="app">
+  <div id="listView">
+    <header class="list-header">
+      <h1>Chat<span>.</span></h1>
+      <div class="search-box">
+        <input type="text" id="searchInput" placeholder="Cari Kenchats ID buat mulai chat baru" inputmode="numeric">
+      </div>
+    </header>
+    <div class="chat-list" id="chatList">
+      <div class="empty-hint">Belum ada obrolan.<br>Cari Kenchats ID temen kamu buat mulai chat.</div>
+    </div>
+    <nav class="bottomnav">
+      <a href="chat.html" class="active"><span class="ic">💬<span class="nav-dot" id="dotChat"></span></span>Chat</a>
+      <a href="status.html"><span class="ic">✨</span>Status</a>
+      <a href="profile.html"><span class="ic">👤</span>Profil</a>
+    </nav>
+  </div>
+
+  <div id="roomView">
+    <header class="room-header">
+      <a href="chat.html" class="back">←</a>
+      <div class="rinfo">
+        <div class="rname" id="roomName">...</div>
+        <div class="rstatus" id="roomStatus"></div>
+      </div>
+      <button class="menu-btn" id="roomMenuBtn">⋮</button>
+    </header>
+    <div class="messages" id="messagesEl"></div>
+    <form class="compose" id="composeForm">
+      <button type="button" class="attach-btn" id="attachBtn" title="Kirim gambar">📷</button>
+      <input type="file" id="imageInput" accept="image/*" style="display:none;">
+      <input type="text" id="messageInput" placeholder="Tulis pesan..." autocomplete="off">
+      <button type="submit">➤</button>
+    </form>
+  </div>
+</div>
+
+<div class="lightbox" id="lightbox"><img id="lightboxImg" src="" alt="foto"></div>
+<div class="sheet-overlay" id="sheetOverlay"><div class="sheet-box" id="sheetBox"></div></div>
+
+<script type="module">
+  import { initializeApp } from "https://www.gstatic.com/firebasejs/12.12.0/firebase-app.js";
+  import { getAuth, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/12.12.0/firebase-auth.js";
+  import {
+    getFirestore, doc, getDoc, setDoc, collection, query, where, orderBy,
+    onSnapshot, addDoc, updateDoc, deleteDoc, getDocs, serverTimestamp, arrayUnion
+  } from "https://www.gstatic.com/firebasejs/12.12.0/firebase-firestore.js";
+
+  const firebaseConfig = {
+    apiKey: "AIzaSyCJomifys1cY-9ELI4Ft3Z5N-cLs2YQcVU",
+    authDomain: "nero-fa67c.firebaseapp.com",
+    projectId: "nero-fa67c",
+    storageBucket: "nero-fa67c.firebasestorage.app",
+    messagingSenderId: "349005489687",
+    appId: "1:349005489687:web:c27ce076b4f54da5275e52"
+  };
+  const app = initializeApp(firebaseConfig);
+  const auth = getAuth(app);
+  const db = getFirestore(app);
+
+  function fmtTime(ts){
+    if (!ts) return '';
+    const d = ts.toDate ? ts.toDate() : new Date(ts);
+    return d.toLocaleTimeString('id-ID', { hour:'2-digit', minute:'2-digit' });
+  }
+  function fmtLastSeen(ts){
+    if (!ts) return '';
+    const d = ts.toDate ? ts.toDate() : new Date(ts);
+    const diffSec = Math.floor((Date.now() - d.getTime()) / 1000);
+    if (diffSec < 45) return 'Online';
+    if (diffSec < 3600) return 'Terakhir dilihat ' + Math.floor(diffSec/60) + ' menit lalu';
+    if (diffSec < 86400) return 'Terakhir dilihat ' + Math.floor(diffSec/3600) + ' jam lalu';
+    return 'Terakhir dilihat ' + Math.floor(diffSec/86400) + ' hari lalu';
+  }
+  function escapeHtml(str){
+    const d = document.createElement('div');
+    d.textContent = str;
+    return d.innerHTML;
+  }
+  function makeChatId(a, b){ return [a, b].sort().join('_'); }
+
+  function attachLongPress(el, callback){
+    let timer = null;
+    const start = () => { timer = setTimeout(callback, 480); };
+    const cancel = () => { if (timer) clearTimeout(timer); };
+    el.addEventListener('touchstart', start, { passive: true });
+    el.addEventListener('touchend', cancel);
+    el.addEventListener('touchmove', cancel);
+    el.addEventListener('mousedown', start);
+    el.addEventListener('mouseup', cancel);
+    el.addEventListener('mouseleave', cancel);
+  }
+
+  const sheetOverlay = document.getElementById('sheetOverlay');
+  const sheetBox = document.getElementById('sheetBox');
+  function showActionSheet(options){
+    sheetBox.innerHTML = '';
+    options.forEach(opt => {
+      const btn = document.createElement('button');
+      btn.className = 'sheet-item' + (opt.danger ? ' danger' : '');
+      btn.textContent = opt.label;
+      if (opt.disabled){
+        btn.disabled = true;
+        if (opt.disabledReason) btn.title = opt.disabledReason;
+      } else {
+        btn.addEventListener('click', () => { sheetOverlay.classList.remove('show'); opt.action(); });
+      }
+      sheetBox.appendChild(btn);
+    });
+    const cancelBtn = document.createElement('button');
+    cancelBtn.className = 'sheet-item cancel';
+    cancelBtn.textContent = 'Batal';
+    cancelBtn.addEventListener('click', () => sheetOverlay.classList.remove('show'));
+    sheetBox.appendChild(cancelBtn);
+    sheetOverlay.classList.add('show');
+  }
+  sheetOverlay.addEventListener('click', (e) => { if (e.target === sheetOverlay) sheetOverlay.classList.remove('show'); });
+
+  function compressImage(file, maxDimension, quality){
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onerror = () => reject(new Error('Gagal baca file'));
+      reader.onload = () => {
+        const img = new Image();
+        img.onerror = () => reject(new Error('File bukan gambar valid'));
+        img.onload = () => {
+          let { width, height } = img;
+          if (width > height && width > maxDimension){ height = Math.round(height * (maxDimension/width)); width = maxDimension; }
+          else if (height > maxDimension){ width = Math.round(width * (maxDimension/height)); height = maxDimension; }
+          const canvas = document.createElement('canvas');
+          canvas.width = width; canvas.height = height;
+          canvas.getContext('2d').drawImage(img,0,0,width,height);
+          resolve(canvas.toDataURL('image/jpeg', quality));
+        };
+        img.src = reader.result;
+      };
+      reader.readAsDataURL(file);
+    });
+  }
+
+  function startPresence(myUid){
+    const ref = doc(db, 'users', myUid);
+    const beat = () => updateDoc(ref, { lastSeen: serverTimestamp() }).catch(()=>{});
+    beat();
+    setInterval(beat, 25000);
+    document.addEventListener('visibilitychange', () => { if (!document.hidden) beat(); });
+    window.addEventListener('beforeunload', beat);
+  }
+  function watchLastSeen(otherUid, cb){ return onSnapshot(doc(db,'users',otherUid), (s)=>cb(s.exists()?s.data().lastSeen:null)); }
+  function setTyping(chatId, myUid, val){ return updateDoc(doc(db,'chats',chatId), { [`typing.${myUid}`]: val }).catch(()=>{}); }
+  function watchTyping(chatId, otherUid, cb){ return onSnapshot(doc(db,'chats',chatId), (s)=>{ const d=s.data()||{}; cb(!!(d.typing && d.typing[otherUid])); }); }
+  async function blockUser(myUid, otherUid){ await updateDoc(doc(db,'users',myUid), { blockedUsers: arrayUnion(otherUid) }); }
+  async function reportUser(myUid, otherUid, reason){ await addDoc(collection(db,'reports'), { reporterUid: myUid, reportedUid: otherUid, reason: reason||'', createdAt: serverTimestamp() }); }
+
+  const urlParams = new URLSearchParams(window.location.search);
+  const chatIdParam = urlParams.get('chat');
+  let myUid = null;
+  let myUsername = '';
+
+  onAuthStateChanged(auth, async (user) => {
+    if (!user) { window.location.href = 'login.html'; return; }
+    myUid = user.uid;
+    const snap = await getDoc(doc(db, 'users', myUid));
+    myUsername = snap.exists() ? snap.data().username : (user.email || 'User');
+
+    startPresence(myUid);
+    watchUnreadBadge();
+
+    if (chatIdParam) showRoom(chatIdParam);
+    else showList();
+  });
+
+  function watchUnreadBadge(){
+    const dot = document.getElementById('dotChat');
+    const q = query(collection(db, 'chats'), where('participants', 'array-contains', myUid));
+    onSnapshot(q, (snap) => {
+      let unread = false;
+      snap.forEach(d => {
+        const c = d.data();
+        if (!c.lastMessage || c.lastSenderId === myUid) return;
+        const lastRead = c.lastRead && c.lastRead[myUid] ? c.lastRead[myUid].toMillis() : 0;
+        const updated = c.updatedAt && c.updatedAt.toMillis ? c.updatedAt.toMillis() : 0;
+        if (updated > lastRead) unread = true;
+      });
+      dot.style.display = unread ? 'block' : 'none';
+    });
+  }
+
+  const searchInput = document.getElementById('searchInput');
+  const chatListEl = document.getElementById('chatList');
+  let debounceTimer;
+  let unsubscribeList = null;
+
+  searchInput.addEventListener('input', () => {
+    clearTimeout(debounceTimer);
+    const term = searchInput.value.trim();
+    if (!term){ renderChatList(); return; }
+    if (!/^\d+$/.test(term)){ chatListEl.innerHTML = '<div class="empty-hint">Kenchats ID cuma angka ya.</div>'; return; }
+    chatListEl.innerHTML = '<div class="empty-hint">Mencari...</div>';
+    debounceTimer = setTimeout(() => doSearchById(term), 350);
+  });
+
+  async function doSearchById(idTerm){
+    try{
+      const q = query(collection(db, 'users'), where('kenchatsId', '==', idTerm));
+      const snap = await getDocs(q);
+      const items = [];
+      snap.forEach(d => { if (d.id !== myUid) items.push({ uid: d.id, ...d.data() }); });
+
+      if (items.length === 0){ chatListEl.innerHTML = '<div class="empty-hint">Gak ada user dengan Kenchats ID itu</div>'; return; }
+
+      chatListEl.innerHTML = '<div class="section-label">Hasil pencarian</div>';
+      items.forEach(u => {
+        const row = document.createElement('div');
+        row.className = 'user-row';
+        row.innerHTML = `
+          <div class="avatar">${(u.username||'?').replace('@','').charAt(0).toUpperCase()}</div>
+          <div class="c-info">
+            <div class="c-name">${u.username || 'User'}</div>
+            <div class="u-id">ID: ${u.kenchatsId}</div>
+          </div>`;
+        row.addEventListener('click', () => openChatWith(u.uid, u.username));
+        chatListEl.appendChild(row);
+      });
+    } catch(err){
+      chatListEl.innerHTML = `<div class="empty-hint">Terjadi kesalahan: ${err.message}</div>`;
+    }
+  }
+
+  async function openChatWith(otherUid, otherUsername){
+    try{
+      const chatId = makeChatId(myUid, otherUid);
+      const chatRef = doc(db, 'chats', chatId);
+      const existing = await getDoc(chatRef);
+      if (!existing.exists()){
+        await setDoc(chatRef, {
+          participants: [myUid, otherUid],
+          participantNames: { [myUid]: myUsername, [otherUid]: otherUsername },
+          lastMessage: '', lastSenderId: '', lastRead: {}, typing: {},
+          updatedAt: serverTimestamp()
+        });
+      }
+      window.location.href = 'chat.html?chat=' + chatId;
+    } catch(err){
+      chatListEl.innerHTML = `<div class="empty-hint">Gagal buka chat: ${err.message}</div>`;
+    }
+  }
+
+  async function deleteChat(chatId, otherName){
+    if (!confirm(`Hapus obrolan sama ${otherName}? Semua pesan bakal ikut kehapus buat kalian berdua.`)) return;
+    try{
+      const msgsSnap = await getDocs(collection(db, 'chats', chatId, 'messages'));
+      for (const msgDoc of msgsSnap.docs){ await deleteDoc(msgDoc.ref); }
+      await deleteDoc(doc(db, 'chats', chatId));
+    } catch(err){ alert('Gagal hapus obrolan: ' + err.message); }
+  }
+
+  function showList(){
+    document.getElementById('listView').style.display = 'flex';
+    document.getElementById('roomView').style.display = 'none';
+    renderChatList();
+  }
+
+  function renderChatList(){
+    if (unsubscribeList) return;
+    const q = query(collection(db, 'chats'), where('participants', 'array-contains', myUid));
+    unsubscribeList = onSnapshot(q, (snap) => {
+      if (searchInput.value.trim()) return;
+
+      let items = [];
+      snap.forEach(d => items.push({ id: d.id, ...d.data() }));
+      items.sort((a,b) => {
+        const ta = a.updatedAt?.toMillis ? a.updatedAt.toMillis() : 0;
+        const tb = b.updatedAt?.toMillis ? b.updatedAt.toMillis() : 0;
+        return tb - ta;
+      });
+
+      if (items.length === 0){
+        chatListEl.innerHTML = '<div class="empty-hint">Belum ada obrolan.<br>Cari Kenchats ID temen kamu buat mulai chat.</div>';
+        return;
+      }
+
+      chatListEl.innerHTML = '';
+      items.forEach(c => {
+        const otherUid = (c.participants || []).find(p => p !== myUid);
+        const otherName = (c.participantNames && c.participantNames[otherUid]) || 'User';
+        const row = document.createElement('div');
+        row.className = 'chat-item';
+        row.innerHTML = `
+          <div class="avatar">${otherName.replace('@','').charAt(0).toUpperCase()}</div>
+          <div class="c-info">
+            <div class="c-top">
+              <span class="c-name">${otherName}</span>
+              <span class="c-time">${fmtTime(c.updatedAt)}</span>
+            </div>
+            <div class="c-preview">${c.lastMessage ? escapeHtml(c.lastMessage) : 'Belum ada pesan'}</div>
+          </div>`;
+        row.addEventListener('click', () => { window.location.href = 'chat.html?chat=' + c.id; });
+        attachLongPress(row, () => {
+          showActionSheet([{ label: 'Hapus Obrolan', danger: true, action: () => deleteChat(c.id, otherName) }]);
+        });
+        chatListEl.appendChild(row);
+      });
+    });
+  }
+
+  function showRoom(chatId){
+    document.getElementById('listView').style.display = 'none';
+    document.getElementById('roomView').style.display = 'flex';
+
+    const chatRef = doc(db, 'chats', chatId);
+    const messagesEl = document.getElementById('messagesEl');
+    const roomNameEl = document.getElementById('roomName');
+    const roomStatusEl = document.getElementById('roomStatus');
+
+    let chatData = {};
+    let otherUid = null;
+    let currentDocs = [];
+    let lastSeenStarted = false;
+    let isTyping = false;
+
+    function isNearBottom(){
+      return messagesEl.scrollHeight - messagesEl.scrollTop - messagesEl.clientHeight < 100;
+    }
+
+    function renderMessages(){
+      const wasNearBottom = isNearBottom();
+      const prevScrollTop = messagesEl.scrollTop;
+      const prevScrollHeight = messagesEl.scrollHeight;
+
+      messagesEl.innerHTML = '';
+      const otherLastRead = (chatData.lastRead && chatData.lastRead[otherUid]) ? chatData.lastRead[otherUid].toMillis() : 0;
+
+      currentDocs.forEach(d => {
+        const m = d.data();
+        if ((m.deletedFor || []).includes(myUid)) return;
+
+        const bubble = document.createElement('div');
+        const isMine = m.senderId === myUid;
+        bubble.className = 'bubble ' + (isMine ? 'me' : 'them');
+        const imgPart = m.imageData ? `<img src="${m.imageData}" alt="gambar">` : '';
+        const textPart = m.text ? escapeHtml(m.text) : '';
+
+        const msgTime = m.timestamp && m.timestamp.toMillis ? m.timestamp.toMillis() : 0;
+        const isRead = isMine && otherLastRead > 0 && otherLastRead >= msgTime;
+        const ticks = isMine ? `<span class="ticks${isRead ? ' read' : ''}">${isRead ? '✓✓' : '✓'}</span>` : '';
+
+        bubble.innerHTML = `${imgPart}${textPart}<div class="meta">${fmtTime(m.timestamp)}${ticks}</div>`;
+        if (m.imageData){ bubble.querySelector('img').addEventListener('click', () => openLightbox(m.imageData)); }
+
+        attachLongPress(bubble, () => {
+          const opts = [{ label: 'Hapus untuk saya', danger: true, action: () => deleteMessageForMe(chatId, d.id) }];
+          if (isMine){
+            opts.push({
+              label: 'Hapus untuk semua', danger: true, disabled: isRead,
+              disabledReason: isRead ? 'Pesan sudah dibaca, gak bisa dihapus buat semua' : '',
+              action: () => deleteMessageForEveryone(chatId, d.id)
+            });
+          }
+          showActionSheet(opts);
+        });
+
+        messagesEl.appendChild(bubble);
+      });
+
+      if (wasNearBottom){
+        messagesEl.scrollTop = messagesEl.scrollHeight;
+      } else {
+        messagesEl.scrollTop = prevScrollTop + (messagesEl.scrollHeight - prevScrollHeight);
+      }
+    }
+
+    onSnapshot(chatRef, (snap) => {
+      if (!snap.exists()) return;
+      chatData = snap.data();
+      otherUid = (chatData.participants || []).find(p => p !== myUid);
+      const otherName = (chatData.participantNames && chatData.participantNames[otherUid]) || 'User';
+      roomNameEl.textContent = otherName;
+
+      if (!lastSeenStarted && otherUid){
+        lastSeenStarted = true;
+        watchLastSeen(otherUid, (lastSeen) => {
+          if (!isTyping){
+            const text = fmtLastSeen(lastSeen);
+            roomStatusEl.textContent = text;
+            roomStatusEl.className = 'rstatus' + (text === 'Online' ? ' online' : '');
+          }
+        });
+        watchTyping(chatId, otherUid, (typing) => {
+          isTyping = typing;
+          if (typing){
+            roomStatusEl.textContent = 'sedang mengetik...';
+            roomStatusEl.className = 'rstatus typing';
+          } else {
+            watchLastSeen(otherUid, (lastSeen) => {
+              const text = fmtLastSeen(lastSeen);
+              roomStatusEl.textContent = text;
+              roomStatusEl.className = 'rstatus' + (text === 'Online' ? ' online' : '');
+            });
+          }
+        });
+      }
+
+      updateDoc(chatRef, { [`lastRead.${myUid}`]: serverTimestamp() }).catch(()=>{});
+      renderMessages();
+    });
+
+    const q = query(collection(db, 'chats', chatId, 'messages'), orderBy('timestamp', 'asc'));
+    onSnapshot(q, (snap) => {
+      currentDocs = snap.docs;
+      renderMessages();
+      updateDoc(chatRef, { [`lastRead.${myUid}`]: serverTimestamp() }).catch(()=>{});
+    });
+
+    document.getElementById('roomMenuBtn').addEventListener('click', () => {
+      showActionSheet([
+        {
+          label: 'Blokir User', danger: true,
+          action: async () => {
+            if (!confirm('Blokir user ini? Kamu gak akan bisa chat lagi sama dia.')) return;
+            await blockUser(myUid, otherUid);
+            alert('User berhasil diblokir.');
+          }
+        },
+        {
+          label: 'Laporkan User', danger: true,
+          action: async () => {
+            const reason = prompt('Kasih alasan laporan (opsional):') || '';
+            await reportUser(myUid, otherUid, reason);
+            alert('Laporan terkirim, makasih.');
+          }
+        }
+      ]);
+    });
+
+    const form = document.getElementById('composeForm');
+    const input = document.getElementById('messageInput');
+    const attachBtn = document.getElementById('attachBtn');
+    const imageInput = document.getElementById('imageInput');
+    let typingTimeout;
+
+    input.addEventListener('input', () => {
+      setTyping(chatId, myUid, true);
+      clearTimeout(typingTimeout);
+      typingTimeout = setTimeout(() => setTyping(chatId, myUid, false), 2500);
+    });
+
+    attachBtn.addEventListener('click', () => imageInput.click());
+
+    imageInput.addEventListener('change', async (e) => {
+      const file = e.target.files[0];
+      imageInput.value = '';
+      if (!file) return;
+      if (!file.type.startsWith('image/')){ alert('Cuma bisa kirim file gambar.'); return; }
+
+      attachBtn.disabled = true;
+      attachBtn.textContent = '⏳';
+      try {
+        const base64 = await compressImage(file, 800, 0.6);
+        if (base64.length > 700000){ alert('Gambar masih kegedean walau udah dikompres, coba pakai foto lain.'); return; }
+        await addDoc(collection(db, 'chats', chatId, 'messages'), { senderId: myUid, text: '', imageData: base64, timestamp: serverTimestamp() });
+        await updateDoc(chatRef, { lastMessage: '📷 Foto', lastSenderId: myUid, updatedAt: serverTimestamp(), [`lastRead.${myUid}`]: serverTimestamp() });
+      } catch(err){
+        alert('Gagal kirim gambar: ' + err.message);
+      } finally {
+        attachBtn.disabled = false;
+        attachBtn.textContent = '📷';
+      }
+    });
+
+    form.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const text = input.value.trim();
+      if (!text) return;
+      input.value = '';
+      setTyping(chatId, myUid, false);
+
+      await addDoc(collection(db, 'chats', chatId, 'messages'), { senderId: myUid, text: text, timestamp: serverTimestamp() });
+      await updateDoc(chatRef, { lastMessage: text, lastSenderId: myUid, updatedAt: serverTimestamp(), [`lastRead.${myUid}`]: serverTimestamp() });
+    });
+  }
+
+  async function deleteMessageForMe(chatId, messageId){
+    try{ await updateDoc(doc(db, 'chats', chatId, 'messages', messageId), { deletedFor: arrayUnion(myUid) }); }
+    catch(err){ alert('Gagal hapus pesan: ' + err.message); }
+  }
+  async function deleteMessageForEveryone(chatId, messageId){
+    try{ await deleteDoc(doc(db, 'chats', chatId, 'messages', messageId)); }
+    catch(err){ alert('Gagal hapus pesan: ' + err.message); }
+  }
+
+  const lightbox = document.getElementById('lightbox');
+  const lightboxImg = document.getElementById('lightboxImg');
+  function openLightbox(src){ lightboxImg.src = src; lightbox.classList.add('show'); }
+  lightbox.addEventListener('click', () => { lightbox.classList.remove('show'); lightboxImg.src = ''; });
+</script>
+</body>
+</html>
