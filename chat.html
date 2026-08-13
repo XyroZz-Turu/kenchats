@@ -61,6 +61,10 @@
   header.room-header .rstatus.online{ color:var(--online); }
   header.room-header .rstatus.typing{ color:var(--accent-warm); }
   .menu-btn{ background:none; border:none; color:var(--text); font-size:1.3rem; cursor:pointer; padding:6px; }
+  .block-banner{
+    text-align:center; font-size:0.8rem; color:var(--muted);
+    padding:10px 16px; background:rgba(255,107,107,0.1); border-top:1px solid rgba(255,107,107,0.2);
+  }
 
   .messages{ flex:1; overflow-y:auto; padding:16px; display:flex; flex-direction:column; gap:8px; }
   .bubble{ max-width:72%; padding:9px 13px; border-radius:16px; font-size:0.9rem; line-height:1.35; position:relative; word-wrap:break-word; }
@@ -136,6 +140,7 @@
       <button class="menu-btn" id="roomMenuBtn">⋮</button>
     </header>
     <div class="messages" id="messagesEl"></div>
+    <div class="block-banner" id="blockBanner" style="display:none;"></div>
     <form class="compose" id="composeForm">
       <button type="button" class="attach-btn" id="attachBtn" title="Kirim gambar">📷</button>
       <input type="file" id="imageInput" accept="image/*" style="display:none;">
@@ -153,7 +158,7 @@
   import { getAuth, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/12.12.0/firebase-auth.js";
   import {
     getFirestore, doc, getDoc, setDoc, collection, query, where, orderBy,
-    onSnapshot, addDoc, updateDoc, deleteDoc, getDocs, serverTimestamp, arrayUnion
+    onSnapshot, addDoc, updateDoc, deleteDoc, getDocs, serverTimestamp, arrayUnion, arrayRemove
   } from "https://www.gstatic.com/firebasejs/12.12.0/firebase-firestore.js";
 
   const firebaseConfig = {
@@ -271,6 +276,14 @@
   function setTyping(chatId, myUid, val){ return updateDoc(doc(db,'chats',chatId), { [`typing.${myUid}`]: val }).catch(()=>{}); }
   function watchTyping(chatId, otherUid, cb){ return onSnapshot(doc(db,'chats',chatId), (s)=>{ const d=s.data()||{}; cb(!!(d.typing && d.typing[otherUid])); }); }
   async function blockUser(myUid, otherUid){ await updateDoc(doc(db,'users',myUid), { blockedUsers: arrayUnion(otherUid) }); }
+  async function blockUserInChat(chatId, myUid, otherUid){
+    await blockUser(myUid, otherUid);
+    await updateDoc(doc(db,'chats',chatId), { blockedBy: arrayUnion(otherUid) });
+  }
+  async function unblockUserInChat(chatId, myUid, otherUid){
+    await updateDoc(doc(db,'users',myUid), { blockedUsers: arrayRemove(otherUid) });
+    await updateDoc(doc(db,'chats',chatId), { blockedBy: arrayRemove(otherUid) });
+  }
   async function reportUser(myUid, otherUid, reason){ await addDoc(collection(db,'reports'), { reporterUid: myUid, reportedUid: otherUid, reason: reason||'', createdAt: serverTimestamp() }); }
 
   const urlParams = new URLSearchParams(window.location.search);
@@ -334,11 +347,12 @@
       items.forEach(u => {
         const row = document.createElement('div');
         row.className = 'user-row';
+        const safeName = escapeHtml(u.username || 'User');
         row.innerHTML = `
-          <div class="avatar">${(u.username||'?').replace('@','').charAt(0).toUpperCase()}</div>
+          <div class="avatar">${escapeHtml((u.username||'?').replace('@','').charAt(0).toUpperCase())}</div>
           <div class="c-info">
-            <div class="c-name">${u.username || 'User'}</div>
-            <div class="u-id">ID: ${u.kenchatsId}</div>
+            <div class="c-name">${safeName}</div>
+            <div class="u-id">ID: ${escapeHtml(u.kenchatsId || '')}</div>
           </div>`;
         row.addEventListener('click', () => openChatWith(u.uid, u.username));
         chatListEl.appendChild(row);
@@ -405,13 +419,14 @@
       items.forEach(c => {
         const otherUid = (c.participants || []).find(p => p !== myUid);
         const otherName = (c.participantNames && c.participantNames[otherUid]) || 'User';
+        const safeName = escapeHtml(otherName);
         const row = document.createElement('div');
         row.className = 'chat-item';
         row.innerHTML = `
-          <div class="avatar">${otherName.replace('@','').charAt(0).toUpperCase()}</div>
+          <div class="avatar">${escapeHtml(otherName.replace('@','').charAt(0).toUpperCase())}</div>
           <div class="c-info">
             <div class="c-top">
-              <span class="c-name">${otherName}</span>
+              <span class="c-name">${safeName}</span>
               <span class="c-time">${fmtTime(c.updatedAt)}</span>
             </div>
             <div class="c-preview">${c.lastMessage ? escapeHtml(c.lastMessage) : 'Belum ada pesan'}</div>
@@ -442,6 +457,27 @@
 
     function isNearBottom(){
       return messagesEl.scrollHeight - messagesEl.scrollTop - messagesEl.clientHeight < 100;
+    }
+
+    function updateBlockBanner(otherName){
+      const banner = document.getElementById('blockBanner');
+      const blockedBy = chatData.blockedBy || [];
+      const form = document.getElementById('composeForm');
+      const iAmBlocked = blockedBy.includes(myUid);
+      const iBlockedThem = blockedBy.includes(otherUid);
+
+      if (iAmBlocked){
+        banner.style.display = 'block';
+        banner.textContent = 'Kamu diblokir oleh user ini, gak bisa kirim pesan.';
+        form.style.display = 'none';
+      } else if (iBlockedThem){
+        banner.style.display = 'block';
+        banner.textContent = `Kamu memblokir ${otherName}. Buka blokir lewat menu ⋮ buat kirim pesan lagi.`;
+        form.style.display = 'none';
+      } else {
+        banner.style.display = 'none';
+        form.style.display = 'flex';
+      }
     }
 
     function renderMessages(){
@@ -522,6 +558,7 @@
       otherUid = (chatData.participants || []).find(p => p !== myUid);
       const otherName = (chatData.participantNames && chatData.participantNames[otherUid]) || 'User';
       roomNameEl.textContent = otherName;
+      updateBlockBanner(otherName);
 
       if (!lastSeenStarted && otherUid){
         lastSeenStarted = true;
@@ -558,13 +595,19 @@
     });
 
     document.getElementById('roomMenuBtn').addEventListener('click', () => {
+      const alreadyBlocked = (chatData.blockedBy || []).includes(otherUid);
       showActionSheet([
         {
-          label: 'Blokir User', danger: true,
+          label: alreadyBlocked ? 'Buka Blokir User' : 'Blokir User', danger: true,
           action: async () => {
-            if (!confirm('Blokir user ini? Kamu gak akan bisa chat lagi sama dia.')) return;
-            await blockUser(myUid, otherUid);
-            alert('User berhasil diblokir.');
+            if (alreadyBlocked){
+              await unblockUserInChat(chatId, myUid, otherUid);
+              alert('Blokir dibuka.');
+            } else {
+              if (!confirm('Blokir user ini? Dia gak akan bisa kirim pesan lagi ke kamu.')) return;
+              await blockUserInChat(chatId, myUid, otherUid);
+              alert('User berhasil diblokir.');
+            }
           }
         },
         {
