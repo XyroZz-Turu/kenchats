@@ -76,7 +76,7 @@
 
 <div class="page" id="pageRoot">
   <video id="bgVideo" autoplay muted loop playsinline>
-    <source src="2.mp4" type="video/mp4">
+    <source src="assets/bg-login.mp4" type="video/mp4">
   </video>
   <div class="overlay"></div>
 
@@ -251,6 +251,13 @@
 
     let username = document.getElementById('regUsername').value.trim();
     if (!username.startsWith('@')) username = '@' + username;
+    if (!/^@[a-zA-Z0-9_.]+$/.test(username)){
+      setMsg(msg, 'Username cuma boleh huruf, angka, underscore (_), dan titik (.)');
+      btn.disabled = false;
+      btn.textContent = 'Register';
+      isRegistering = false;
+      return;
+    }
     const email = document.getElementById('regEmail').value.trim();
     const password = document.getElementById('regPassword').value;
 
