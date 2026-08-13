@@ -294,7 +294,7 @@
         row.innerHTML = `
           <div class="swatch" style="background:${s.color || '#6C5CE7'}">${escapeHtml(s.text).slice(0,40)}</div>
           <div class="s-info">
-            <div class="s-name">${isMine ? 'Kamu' : (s.username || 'User')}</div>
+            <div class="s-name">${isMine ? 'Kamu' : escapeHtml(s.username || 'User')}</div>
             <div class="s-time">${fmtAgo(s.createdAt)}</div>
           </div>
           ${isMine ? '<button class="s-delete" title="Hapus">🗑</button>' : ''}
