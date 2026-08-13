@@ -70,6 +70,14 @@
   .bubble .ticks{ font-size:0.75rem; }
   .bubble .ticks.read{ color:#7FD8FF; opacity:1; }
   .bubble img{ max-width:220px; max-height:280px; width:100%; object-fit:cover; border-radius:12px; display:block; margin-bottom:2px; cursor:pointer; }
+  .translate-btn{
+    font-size:0.72rem; color:rgba(255,255,255,0.75); text-decoration:underline;
+    cursor:pointer; margin-top:4px; display:inline-block;
+  }
+  .translate-result{
+    font-size:0.85rem; font-style:italic; margin-top:5px; padding-top:5px;
+    border-top:1px solid rgba(255,255,255,0.15); opacity:0.9;
+  }
 
   form.compose{ display:flex; gap:8px; padding:12px 14px; border-top:1px solid rgba(255,255,255,0.08); background:rgba(22,26,34,0.65); backdrop-filter:blur(10px); }
   form.compose input[type="text"]{ flex:1; padding:11px 15px; border-radius:999px; border:1px solid rgba(255,255,255,0.08); background:var(--surface-2); color:var(--text); outline:none; font-size:0.9rem; }
@@ -97,7 +105,7 @@
 </head>
 <body>
 
-<img class="bg-image" src="bg.png" alt="" onerror="this.style.display='none'">
+<img class="bg-image" src="assets/bg-chat.png" alt="" onerror="this.style.display='none'">
 <div class="bg-overlay"></div>
 
 <div class="app">
@@ -179,6 +187,17 @@
     d.textContent = str;
     return d.innerHTML;
   }
+  async function translateText(text){
+    try{
+      const target = (navigator.language || 'id').split('-')[0];
+      const res = await fetch('https://api.mymemory.translated.net/get?q=' + encodeURIComponent(text) + '&langpair=autodetect|' + target);
+      const data = await res.json();
+      return data?.responseData?.translatedText || '(gagal menerjemahkan)';
+    } catch(err){
+      return '(gagal menerjemahkan, coba lagi)';
+    }
+  }
+
   function makeChatId(a, b){ return [a, b].sort().join('_'); }
 
   function attachLongPress(el, callback){
@@ -450,6 +469,31 @@
         bubble.innerHTML = `${imgPart}${textPart}<div class="meta">${fmtTime(m.timestamp)}${ticks}</div>`;
         if (m.imageData){ bubble.querySelector('img').addEventListener('click', () => openLightbox(m.imageData)); }
 
+        if (!isMine && m.text){
+          const transBtn = document.createElement('div');
+          transBtn.className = 'translate-btn';
+          transBtn.textContent = '🌐 Terjemahkan';
+          transBtn.addEventListener('click', async (e) => {
+            e.stopPropagation();
+            if (transBtn.dataset.done === '1'){
+              const resultEl = bubble.querySelector('.translate-result');
+              if (resultEl) resultEl.remove();
+              transBtn.textContent = '🌐 Terjemahkan';
+              transBtn.dataset.done = '0';
+              return;
+            }
+            transBtn.textContent = 'Menerjemahkan...';
+            const translated = await translateText(m.text);
+            transBtn.textContent = '🌐 Sembunyikan terjemahan';
+            transBtn.dataset.done = '1';
+            const resultEl = document.createElement('div');
+            resultEl.className = 'translate-result';
+            resultEl.textContent = translated;
+            bubble.insertBefore(resultEl, bubble.querySelector('.meta'));
+          });
+          bubble.insertBefore(transBtn, bubble.querySelector('.meta'));
+        }
+
         attachLongPress(bubble, () => {
           const opts = [{ label: 'Hapus untuk saya', danger: true, action: () => deleteMessageForMe(chatId, d.id) }];
           if (isMine){
@@ -503,7 +547,6 @@
         });
       }
 
-      updateDoc(chatRef, { [`lastRead.${myUid}`]: serverTimestamp() }).catch(()=>{});
       renderMessages();
     });
 
@@ -597,4 +640,4 @@
   lightbox.addEventListener('click', () => { lightbox.classList.remove('show'); lightboxImg.src = ''; });
 </script>
 </body>
-</html>
+</html> 
