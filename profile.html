@@ -258,7 +258,14 @@
   }
 
   onAuthStateChanged(auth, async (user) => {
-    if (!user) { window.location.href = 'login.html'; return; }
+    if (!user) { window.location.href = 'portal-x9k3f.html'; return; }
+    const preCheck = await getDoc(doc(db, 'users', user.uid));
+    if (preCheck.exists() && preCheck.data().banned === true){
+      await signOut(auth);
+      alert('Akun ini telah dibanned dari Kenchats.');
+      window.location.href = 'portal-x9k3f.html';
+      return;
+    }
     currentUid = user.uid;
     await loadProfile(user);
     startPresence(currentUid);
@@ -283,7 +290,7 @@
 
   document.getElementById('logoutBtn').addEventListener('click', async () => {
     await signOut(auth);
-    window.location.href = 'login.html';
+    window.location.href = 'portal-x9k3f.html';
   });
 
   document.getElementById('changePwBtn').addEventListener('click', async () => {
