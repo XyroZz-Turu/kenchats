@@ -40,6 +40,21 @@
     padding:8px 16px; border-radius:999px; border:1px solid rgba(255,255,255,0.15);
     background:var(--surface); color:var(--text); font-size:0.82rem; cursor:pointer; margin-bottom:16px;
   }
+
+  .section-label{ font-size:0.72rem; color:var(--muted); text-transform:uppercase; letter-spacing:0.06em; margin:18px 0 10px; }
+
+  .summary-card{
+    background:var(--surface); border:1px solid rgba(255,255,255,0.06); border-radius:12px;
+    padding:12px 14px; margin-bottom:8px; display:flex; align-items:center; justify-content:space-between; gap:10px;
+  }
+  .summary-card .sname{ font-weight:600; font-size:0.92rem; }
+  .summary-card .scount{ font-size:0.78rem; color:var(--muted); margin-top:2px; }
+  .ban-btn{
+    padding:7px 16px; border-radius:999px; border:none; font-size:0.8rem; font-weight:600; cursor:pointer; flex-shrink:0;
+  }
+  .ban-btn.do-ban{ background:var(--danger); color:#fff; }
+  .ban-btn.do-unban{ background:var(--surface-2); color:var(--text); border:1px solid rgba(255,255,255,0.15); }
+  .banned-tag{ font-size:0.7rem; color:var(--danger); font-weight:700; }
 </style>
 </head>
 <body>
@@ -58,7 +73,7 @@
   import { initializeApp } from "https://www.gstatic.com/firebasejs/12.12.0/firebase-app.js";
   import { getAuth, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/12.12.0/firebase-auth.js";
   import {
-    getFirestore, doc, getDoc, collection, query, orderBy, getDocs, deleteDoc
+    getFirestore, doc, getDoc, collection, query, orderBy, getDocs, deleteDoc, updateDoc
   } from "https://www.gstatic.com/firebasejs/12.12.0/firebase-firestore.js";
 
   const firebaseConfig = {
@@ -83,7 +98,7 @@
 
   onAuthStateChanged(auth, async (user) => {
     if (!user) {
-      contentEl.innerHTML = '<div class="state-box">Kamu harus login dulu.<br><a href="login.html" style="color:#F2B84B;">Ke halaman Login</a></div>';
+      contentEl.innerHTML = '<div class="state-box">Kamu harus login dulu.<br><a href="portal-x9k3f.html" style="color:#F2B84B;">Ke halaman Login</a></div>';
       return;
     }
 
@@ -112,15 +127,60 @@
         return;
       }
 
-      listEl.innerHTML = '';
-      for (const d of snap.docs){
-        const r = d.data();
-        const [reporterSnap, reportedSnap] = await Promise.all([
-          r.reporterUid ? getDoc(doc(db, 'users', r.reporterUid)) : null,
-          r.reportedUid ? getDoc(doc(db, 'users', r.reportedUid)) : null
-        ]);
-        const reporterName = reporterSnap && reporterSnap.exists() ? reporterSnap.data().username : '(tidak ditemukan)';
-        const reportedName = reportedSnap && reportedSnap.exists() ? reportedSnap.data().username : '(tidak ditemukan)';
+      // Kumpulin user doc unik biar gak fetch berkali-kali
+      const userCache = {};
+      async function getUserCached(uid){
+        if (!uid) return null;
+        if (userCache[uid] !== undefined) return userCache[uid];
+        const s = await getDoc(doc(db, 'users', uid));
+        userCache[uid] = s.exists() ? { uid, ...s.data() } : null;
+        return userCache[uid];
+      }
+
+      const reports = snap.docs.map(d => ({ id: d.id, ref: d.ref, ...d.data() }));
+
+      // Ringkasan per reportedUid
+      const summaryMap = {};
+      for (const r of reports){
+        if (!r.reportedUid) continue;
+        if (!summaryMap[r.reportedUid]) summaryMap[r.reportedUid] = new Set();
+        summaryMap[r.reportedUid].add(r.reporterUid);
+      }
+
+      listEl.innerHTML = '<div class="section-label">Ringkasan (per user dilaporkan)</div><div id="summaryBox"></div><div class="section-label">Semua Laporan</div><div id="rawList"></div>';
+      const summaryBox = document.getElementById('summaryBox');
+      const rawList = document.getElementById('rawList');
+
+      for (const uid of Object.keys(summaryMap)){
+        const u = await getUserCached(uid);
+        const name = u ? u.username : '(tidak ditemukan)';
+        const isBanned = u && u.banned === true;
+        const count = summaryMap[uid].size;
+
+        const card = document.createElement('div');
+        card.className = 'summary-card';
+        card.innerHTML = `
+          <div>
+            <div class="sname">${escapeHtml(name)} ${isBanned ? '<span class="banned-tag">• DIBAN</span>' : ''}</div>
+            <div class="scount">Dilaporkan ${count}x oleh ${count} orang beda</div>
+          </div>
+          <button class="ban-btn ${isBanned ? 'do-unban' : 'do-ban'}">${isBanned ? 'Buka Ban' : 'Ban'}</button>
+        `;
+        card.querySelector('.ban-btn').addEventListener('click', async () => {
+          if (!u){ alert('User gak ditemukan.'); return; }
+          const confirmMsg = isBanned ? `Buka ban buat ${name}?` : `Ban ${name}? Dia gak akan bisa login lagi.`;
+          if (!confirm(confirmMsg)) return;
+          await updateDoc(doc(db, 'users', uid), { banned: !isBanned });
+          loadReports();
+        });
+        summaryBox.appendChild(card);
+      }
+
+      for (const r of reports){
+        const reporter = await getUserCached(r.reporterUid);
+        const reported = await getUserCached(r.reportedUid);
+        const reporterName = reporter ? reporter.username : '(tidak ditemukan)';
+        const reportedName = reported ? reported.username : '(tidak ditemukan)';
 
         const card = document.createElement('div');
         card.className = 'report-card';
@@ -135,10 +195,10 @@
         `;
         card.querySelector('.del-btn').addEventListener('click', async () => {
           if (!confirm('Hapus laporan ini?')) return;
-          await deleteDoc(d.ref);
+          await deleteDoc(r.ref);
           card.remove();
         });
-        listEl.appendChild(card);
+        rawList.appendChild(card);
       }
     } catch(err){
       document.getElementById('reportList').innerHTML = `<div class="state-box">Gagal memuat: ${err.message}</div>`;
