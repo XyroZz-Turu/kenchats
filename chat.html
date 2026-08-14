@@ -155,7 +155,7 @@
 
 <script type="module">
   import { initializeApp } from "https://www.gstatic.com/firebasejs/12.12.0/firebase-app.js";
-  import { getAuth, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/12.12.0/firebase-auth.js";
+  import { getAuth, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/12.12.0/firebase-auth.js";
   import {
     getFirestore, doc, getDoc, setDoc, collection, query, where, orderBy,
     onSnapshot, addDoc, updateDoc, deleteDoc, getDocs, serverTimestamp, arrayUnion, arrayRemove
@@ -292,9 +292,15 @@
   let myUsername = '';
 
   onAuthStateChanged(auth, async (user) => {
-    if (!user) { window.location.href = 'login.html'; return; }
+    if (!user) { window.location.href = 'portal-x9k3f.html'; return; }
     myUid = user.uid;
     const snap = await getDoc(doc(db, 'users', myUid));
+    if (snap.exists() && snap.data().banned === true){
+      await signOut(auth);
+      alert('Akun ini telah dibanned dari Kenchats.');
+      window.location.href = 'portal-x9k3f.html';
+      return;
+    }
     myUsername = snap.exists() ? snap.data().username : (user.email || 'User');
 
     startPresence(myUid);
