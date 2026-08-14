@@ -109,7 +109,7 @@
 </head>
 <body>
 
-<img class="bg-image" src="bg.png" alt="" onerror="this.style.display='none'">
+<img class="bg-image" src="assets/bg-chat.png" alt="" onerror="this.style.display='none'">
 <div class="bg-overlay"></div>
 
 <div class="app">
@@ -562,7 +562,10 @@
 
       if (!lastSeenStarted && otherUid){
         lastSeenStarted = true;
+        let lastSeenValue = null;
+
         watchLastSeen(otherUid, (lastSeen) => {
+          lastSeenValue = lastSeen;
           if (!isTyping){
             const text = fmtLastSeen(lastSeen);
             roomStatusEl.textContent = text;
@@ -575,11 +578,9 @@
             roomStatusEl.textContent = 'sedang mengetik...';
             roomStatusEl.className = 'rstatus typing';
           } else {
-            watchLastSeen(otherUid, (lastSeen) => {
-              const text = fmtLastSeen(lastSeen);
-              roomStatusEl.textContent = text;
-              roomStatusEl.className = 'rstatus' + (text === 'Online' ? ' online' : '');
-            });
+            const text = fmtLastSeen(lastSeenValue);
+            roomStatusEl.textContent = text;
+            roomStatusEl.className = 'rstatus' + (text === 'Online' ? ' online' : '');
           }
         });
       }
@@ -587,11 +588,20 @@
       renderMessages();
     });
 
+    // Tandai udah dibaca sekali pas room dibuka
+    updateDoc(chatRef, { [`lastRead.${myUid}`]: serverTimestamp() }).catch(()=>{});
+
     const q = query(collection(db, 'chats', chatId, 'messages'), orderBy('timestamp', 'asc'));
     onSnapshot(q, (snap) => {
       currentDocs = snap.docs;
       renderMessages();
-      updateDoc(chatRef, { [`lastRead.${myUid}`]: serverTimestamp() }).catch(()=>{});
+      // Cuma tandai dibaca lagi kalau ada pesan BARU dari lawan chat (bukan dari kita sendiri)
+      const hasIncomingChange = snap.docChanges().some(c =>
+        (c.type === 'added' || c.type === 'modified') && c.doc.data().senderId !== myUid
+      );
+      if (hasIncomingChange){
+        updateDoc(chatRef, { [`lastRead.${myUid}`]: serverTimestamp() }).catch(()=>{});
+      }
     });
 
     document.getElementById('roomMenuBtn').addEventListener('click', () => {
@@ -683,4 +693,4 @@
   lightbox.addEventListener('click', () => { lightbox.classList.remove('show'); lightboxImg.src = ''; });
 </script>
 </body>
-</html> 
+</html>
