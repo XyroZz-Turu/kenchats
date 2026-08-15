@@ -76,7 +76,7 @@
 
 <div class="page" id="pageRoot">
   <video id="bgVideo" autoplay muted loop playsinline>
-    <source src="2.mp4" type="video/mp4">
+    <source src="assets/bg-login.mp4" type="video/mp4">
   </video>
   <div class="overlay"></div>
 
@@ -124,6 +124,7 @@
 
 <script type="module">
   import { initializeApp } from "https://www.gstatic.com/firebasejs/12.12.0/firebase-app.js";
+  import { initializeAppCheck, ReCaptchaV3Provider } from "https://www.gstatic.com/firebasejs/12.12.0/firebase-app-check.js";
   import {
     getAuth, onAuthStateChanged, setPersistence, browserLocalPersistence,
     signInWithEmailAndPassword, createUserWithEmailAndPassword,
@@ -142,6 +143,10 @@
     appId: "1:349005489687:web:c27ce076b4f54da5275e52"
   };
   const app = initializeApp(firebaseConfig);
+  initializeAppCheck(app, {
+    provider: new ReCaptchaV3Provider('6Ld4soYtAAAAADmH1LCV9d9y3-bfxsexYxuOlVdP'),
+    isTokenAutoRefreshEnabled: true
+  });
   const auth = getAuth(app);
   const db = getFirestore(app);
 
@@ -213,6 +218,23 @@
     return 'Terjadi kesalahan: ' + (err.message || code);
   }
 
+  const LOCKOUT_PREFIX = 'kenchats_lockout_';
+  const MAX_ATTEMPTS = 3;
+  const LOCKOUT_MS = 5 * 60 * 1000; // 5 menit
+
+  function getLockoutState(email){
+    try {
+      const raw = localStorage.getItem(LOCKOUT_PREFIX + email.toLowerCase());
+      return raw ? JSON.parse(raw) : { attempts: 0, lockedUntil: 0 };
+    } catch(e){ return { attempts: 0, lockedUntil: 0 }; }
+  }
+  function setLockoutState(email, state){
+    try { localStorage.setItem(LOCKOUT_PREFIX + email.toLowerCase(), JSON.stringify(state)); } catch(e){}
+  }
+  function clearLockoutState(email){
+    try { localStorage.removeItem(LOCKOUT_PREFIX + email.toLowerCase()); } catch(e){}
+  }
+
   let pendingUser = null;
 
   loginForm.addEventListener('submit', async (e) => {
@@ -222,11 +244,19 @@
     const resendRow = document.getElementById('resendRow');
     setMsg(msg, '');
     resendRow.style.display = 'none';
-    btn.disabled = true;
-    btn.textContent = 'Memproses...';
 
     const email = document.getElementById('loginEmail').value.trim();
     const password = document.getElementById('loginPassword').value;
+
+    const lockState = getLockoutState(email);
+    if (lockState.lockedUntil && Date.now() < lockState.lockedUntil){
+      const remainMin = Math.ceil((lockState.lockedUntil - Date.now()) / 60000);
+      setMsg(msg, `Terlalu banyak percobaan gagal. Coba lagi dalam ${remainMin} menit.`);
+      return;
+    }
+
+    btn.disabled = true;
+    btn.textContent = 'Memproses...';
 
     try {
       const cred = await signInWithEmailAndPassword(auth, email, password);
@@ -246,11 +276,29 @@
         btn.textContent = 'Login';
         return;
       }
+      clearLockoutState(email);
       setMsg(msg, 'Login berhasil!', true);
       await ensureAdmin(cred.user);
       goHome();
     } catch (err) {
-      setMsg(msg, firebaseErrorToText(err));
+      const code = err.code || '';
+      if (code.includes('wrong-password') || code.includes('invalid-credential') || code.includes('user-not-found')){
+        const st = getLockoutState(email);
+        st.attempts = (st.attempts || 0) + 1;
+        if (st.attempts >= MAX_ATTEMPTS){
+          st.lockedUntil = Date.now() + LOCKOUT_MS;
+          st.attempts = 0;
+          setLockoutState(email, st);
+          setMsg(msg, 'Terlalu banyak percobaan gagal. Coba lagi dalam 5 menit.');
+          btn.disabled = false;
+          btn.textContent = 'Login';
+          return;
+        }
+        setLockoutState(email, st);
+        setMsg(msg, firebaseErrorToText(err) + ` (percobaan ke-${st.attempts}/${MAX_ATTEMPTS})`);
+      } else {
+        setMsg(msg, firebaseErrorToText(err));
+      }
       btn.disabled = false;
       btn.textContent = 'Login';
     }
@@ -392,4 +440,4 @@
   });
 </script>
 </body>
-  </html>
+</html>
